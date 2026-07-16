@@ -132,3 +132,12 @@ examples/
 .vscode/settings.json
 =*
 README.html
+
+# dashcam data files
+input/
+output/
+
+# dev artifacts
+node_modules/
+.webpack/
+dist/

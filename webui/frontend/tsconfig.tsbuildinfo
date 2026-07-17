@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/api.ts","./src/main.tsx","./src/store.ts","./src/types.ts","./src/components/Composer.tsx","./src/components/EventBrowser.tsx","./src/components/JobsPanel.tsx","./src/components/OutputsGallery.tsx","./src/components/SettingsPanels.tsx","./src/components/ui.tsx"],"version":"5.8.3"}

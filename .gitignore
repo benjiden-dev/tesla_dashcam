@@ -141,3 +141,8 @@ output/
 node_modules/
 .webpack/
 dist/
+
+# Web UI
+webui/frontend/node_modules/
+webui/static/dist/
+webui/frontend/package-lock.json

@@ -18,6 +18,21 @@ well. This means that when saving dashcam footage there is a total of 40
 files video files for every 10 minutes, each event of 10 minutes is put
 into a separate folder.
 
+# Web UI (this fork)
+
+This fork ships a self-hosted **web interface** on top of the engine:
+event browser with per-minute clip selection, engine-true layout previews,
+structured progress, in-browser playback of results, quality presets with a
+GPU bitrate control, optional OpenStreetMap location burn-in, and verified
+deletion of processed input.
+
+```bash
+RENDER_NODE=/dev/dri/renderD128 INPUT_DIR=/path/to/TeslaCam OUTPUT_DIR=/path/to/output \
+docker compose -f docker-compose.webui.yml up -d --build
+```
+
+Then open http://localhost:8088. Full documentation: [webui/README.md](webui/README.md)
+
 Using this program, one can combine the 40 video files of an event into
 one (1), and combine video of multiple events together. The layout of
 the six (6) different cameras within the resulting video can be

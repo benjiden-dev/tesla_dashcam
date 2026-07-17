@@ -72,6 +72,9 @@ export interface AppConfig {
   input_dir: string;
   output_dir: string;
   gpu_available: boolean;
+  gpu_backend: string;
+  gpu_badge: string | null;
+  platform: string;
   render_node: string;
   default_gpu_type: string;
   engine_version: string | null;

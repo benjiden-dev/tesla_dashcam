@@ -89,6 +89,32 @@ def test_args_custom() -> None:
     assert "--loglevel DEBUG" in joined
 
 
+def test_args_darwin_gpu() -> None:
+    # On macOS the engine has no --gpu_type; VideoToolbox is selected
+    # automatically. The builder must emit --gpu alone (bitrate still valid).
+    from webui import config
+
+    original = config.IS_DARWIN
+    config.IS_DARWIN = True
+    try:
+        args = engine.build_engine_args(
+            "/s", "/o", {"gpu": True, "bitrate": "8M"}, gpu_available=True
+        )
+        joined = " ".join(args)
+        assert "--gpu" in args
+        assert "--gpu_type" not in joined
+        assert "--bitrate 8M" in joined
+
+        args = engine.build_engine_args("/s", "/o", {"gpu": False}, gpu_available=True)
+        assert "--no-gpu" in args
+    finally:
+        config.IS_DARWIN = original
+
+    # Back on Linux, --gpu_type must be emitted again.
+    args = engine.build_engine_args("/s", "/o", {"gpu": True}, gpu_available=True)
+    assert "--gpu_type vaapi" in " ".join(args)
+
+
 def test_args_gpu_fallback() -> None:
     # GPU requested but no render node — engine must run on CPU.
     args = engine.build_engine_args(
@@ -213,6 +239,7 @@ def test_parser_error_and_multi() -> None:
 def main() -> None:
     test_args_defaults()
     test_args_custom()
+    test_args_darwin_gpu()
     test_args_gpu_fallback()
     test_parser()
     test_parser_error_and_multi()

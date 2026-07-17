@@ -208,7 +208,11 @@ export function SettingsPanels() {
         {/* Quality */}
         <Card className="p-4">
           <SectionTitle
-            hint={gpuOn ? "VAAPI hardware encode" : "CPU software encode"}
+            hint={
+              gpuOn
+                ? `${config.gpu_backend} hardware encode`
+                : "CPU software encode"
+            }
           >
             Quality
           </SectionTitle>
@@ -292,8 +296,8 @@ export function SettingsPanels() {
               ) : null}
               {gpuOn && value("quality") !== defaults.quality ? (
                 <div className="text-[11px] text-fog">
-                  Note: with VAAPI the CRF quality applies only to previews;
-                  use bitrate above for output size.
+                  Note: with {config.gpu_backend} the CRF quality applies only
+                  to previews; use bitrate above for output size.
                 </div>
               ) : null}
               <div className="flex items-center justify-between">
@@ -326,7 +330,7 @@ export function SettingsPanels() {
                 checked={value("gpu")}
                 onChange={(checked) => setSetting("gpu", checked)}
                 disabled={!config.gpu_available}
-                label={`GPU acceleration (${config.default_gpu_type})`}
+                label={`GPU acceleration (${config.gpu_backend})`}
                 description={
                   config.gpu_available
                     ? undefined

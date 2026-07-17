@@ -63,9 +63,7 @@ function Header() {
 
       {config ? (
         <Badge tone={config.gpu_available ? "green" : "amber"}>
-          {config.gpu_available
-            ? `VAAPI · ${config.render_node.split("/").pop()}`
-            : "CPU encode"}
+          {config.gpu_badge ?? "CPU encode"}
         </Badge>
       ) : null}
     </header>

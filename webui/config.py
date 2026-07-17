@@ -8,7 +8,11 @@ development.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
+
+# Native macOS runs use Apple's VideoToolbox instead of VAAPI render nodes.
+IS_DARWIN: bool = sys.platform == "darwin"
 
 
 def _path_env(name: str, default: str) -> Path:
@@ -65,5 +69,27 @@ def ensure_dirs() -> None:
 
 
 def gpu_available() -> bool:
-    """True when the VAAPI render node is present inside the container."""
+    """True when hardware encoding is available.
+
+    macOS: VideoToolbox ships with the OS (always available natively).
+    Linux: requires the VAAPI render node inside the container.
+    """
+    if IS_DARWIN:
+        return True
     return os.path.exists(RENDER_NODE)
+
+
+def gpu_backend() -> str:
+    """Human-readable name of the hardware encode backend."""
+    if IS_DARWIN:
+        return "VideoToolbox"
+    return DEFAULT_GPU_TYPE.upper()
+
+
+def gpu_badge() -> str | None:
+    """Short status label for the UI header (None = CPU only)."""
+    if not gpu_available():
+        return None
+    if IS_DARWIN:
+        return "VideoToolbox"
+    return f"{gpu_backend()} · {RENDER_NODE.rsplit('/', 1)[-1]}"

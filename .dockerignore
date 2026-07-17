@@ -48,3 +48,7 @@ docker-compose*.yml
 # Output directories that might be mounted
 output/
 Videos/
+
+# Web UI build inputs handled in-stage
+webui/frontend/node_modules/
+webui/static/dist/

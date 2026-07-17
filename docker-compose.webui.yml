@@ -1,0 +1,34 @@
+# Tesla Dashcam Web UI
+#
+#   RENDER_NODE=/dev/dri/renderD129 docker compose -f docker-compose.webui.yml up -d --build
+#
+# Environment (or .env):
+#   INPUT_DIR    host folder with TeslaCam footage        (default ./input)
+#   OUTPUT_DIR   host folder for rendered movies          (default ./output)
+#   RENDER_NODE  host VAAPI render node to use            (default /dev/dri/renderD128)
+#                The engine always talks to renderD128 inside the container;
+#                point this at the card you want (an eGPU is often renderD129 —
+#                check with: ls -l /dev/dri && vainfo --display drm --device /dev/dri/renderD129)
+
+services:
+  dashcam-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile.webui
+    container_name: tesla-dashcam-webui
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    devices:
+      - "${RENDER_NODE:-/dev/dri/renderD128}:/dev/dri/renderD128"
+    volumes:
+      - "${INPUT_DIR:-./input}:/data"
+      - "${OUTPUT_DIR:-./output}:/output"
+      - webui-cache:/cache
+    environment:
+      - TZ=${TZ:-America/Denver}
+      # Custom tile server for the map burn-in (OSM standard tiles by default):
+      # - MAP_TILE_URL=https://a.tile.openstreetmap.org/{z}/{x}/{y}.png
+
+volumes:
+  webui-cache:

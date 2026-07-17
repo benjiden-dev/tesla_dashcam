@@ -2516,6 +2516,7 @@ def get_movie_files(
                     )
                 else:
                     event_timestamp: str | None = None
+                    event_timestamp_dt: datetime | None = None
                     if (
                         event_timestamp := event_file_data.get("timestamp")
                     ) is not None:
@@ -5250,6 +5251,18 @@ def main() -> int:
         "Default is 24fps which is the standard for movies and TV shows",
     )
 
+    advancedencoding_group.add_argument(
+        "--bitrate",
+        dest="bitrate",
+        required=False,
+        type=str,
+        default=None,
+        help="R|Video bitrate to use when encoding with GPU hardware acceleration "
+        "(e.g. 8M or 8000K).\n"
+        "Hardware encoders do not use the --quality (crf) setting; the default "
+        "is 10000K multiplied by the layout scale.",
+    )
+
     if internal_ffmpeg:
         advancedencoding_group.add_argument(
             "--ffmpeg",
@@ -5737,6 +5750,8 @@ def main() -> int:
                             ffmpeg_hwout = ffmpeg_hwout + ["-hwaccel", "qsv"]
 
             bit_rate = str(int(10000 * layout_settings.scale)) + "K"
+            if getattr(args, "bitrate", None):
+                bit_rate = args.bitrate
             video_encoding = video_encoding + ["-b:v", bit_rate]
 
         video_encoding = video_encoding + ["-c:v", MOVIE_ENCODING[encoding]]

@@ -386,6 +386,16 @@ class JobManager:
                 )
                 job.bump()
                 continue
+            if source_dir.resolve() == config.INPUT_DIR.resolve():
+                # Loose clips directly in the input root scan as an "event"
+                # whose folder IS the input dir — never delete that.
+                job.delete_skipped.append(source_dir.name)
+                job.progress.warnings.append(
+                    f"Skipped deleting {source_dir.name}: cannot delete the "
+                    "root input directory."
+                )
+                job.bump()
+                continue
             try:
                 freed = staging.directory_size(source_dir)
                 shutil.rmtree(source_dir)

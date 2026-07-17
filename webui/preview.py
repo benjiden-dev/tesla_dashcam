@@ -123,7 +123,8 @@ def render_preview(
             )
             movies = sorted(out_dir.glob("*.mp4"))
             if result.returncode != 0 or not movies:
-                tail = "\n".join((result.stdout or "").splitlines()[-12:])
+                error_msg = result.stderr or result.stdout or ""
+                tail = "\n".join(error_msg.splitlines()[-12:])
                 raise RuntimeError(
                     f"engine preview render failed (rc={result.returncode}):\n{tail}"
                 )

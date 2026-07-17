@@ -41,6 +41,7 @@ class _RequestsShim:
     def get(url: str, **kwargs: Any):  # noqa: ANN401 - passthrough shim
         headers = kwargs.pop("headers", None) or {}
         headers.setdefault("User-Agent", config.MAP_USER_AGENT)
+        kwargs.setdefault("timeout", 10)
         return _requests.get(url, headers=headers, **kwargs)
 
 
@@ -161,6 +162,8 @@ def overlay_map(
             timeout=6 * 3600,
         )
         tmp_out.replace(video)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"ffmpeg failed: {exc.stderr}") from exc
     finally:
         if tmp_out.exists():
             tmp_out.unlink(missing_ok=True)

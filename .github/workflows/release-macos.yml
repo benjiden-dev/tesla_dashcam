@@ -1,0 +1,190 @@
+name: macOS release (Dashcam Studio DMG)
+
+# Builds the Dashcam Studio macOS app (PyInstaller + bundled ffmpeg) and a
+# DMG. On version tags it signs, notarizes, staples and publishes a GitHub
+# Release — signing/notarization run only when the repo secrets exist:
+#   MACOS_CERT_P12, MACOS_CERT_PASSWORD          (Developer ID Application)
+#   APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER_ID  (notarytool)
+# Without them the workflow still produces an unsigned DMG artifact.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - ".github/workflows/release-macos.yml"
+      - "packaging/**"
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Frontend ────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build frontend
+        working-directory: webui/frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      # ── Python + PyInstaller ────────────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r webui/requirements.txt pyinstaller
+
+      - name: Download static ffmpeg (arm64)
+        working-directory: packaging/macos
+        run: |
+          mkdir -p bin && cd bin
+          curl -fL --retry 3 -o ffmpeg.zip  "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip"
+          curl -fL --retry 3 -o ffprobe.zip "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffprobe.zip"
+          unzip -o ffmpeg.zip && unzip -o ffprobe.zip
+          rm -f ffmpeg.zip ffprobe.zip
+          chmod +x ffmpeg ffprobe
+          ./ffmpeg -version | head -1
+          ./ffprobe -version | head -1
+          ./ffmpeg -hide_banner -encoders | grep -q h264_videotoolbox && echo "VideoToolbox encoder present"
+
+      - name: Build app (PyInstaller)
+        run: pyinstaller --noconfirm packaging/macos/DashcamStudio.spec
+
+      # ── Smoke tests: engine mode + server mode ──────────────────────
+      - name: Smoke test app
+        run: |
+          BIN="dist/Dashcam Studio.app/Contents/MacOS/DashcamStudio"
+          "$BIN" __engine__ --version
+          "$BIN" > server.log 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 20); do
+            sleep 1
+            curl -sf http://localhost:8088/api/config > config.json && break
+          done
+          kill $SERVER_PID || true
+          grep -q '"gpu_backend":"VideoToolbox"' config.json
+          grep -q '"gpu_available":true' config.json
+          echo "server smoke OK: $(head -c 120 config.json)"
+
+      # ── Version string ──────────────────────────────────────────────
+      - name: Compute version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Signing (skipped on PRs and when secrets are absent) ────────
+      - name: Detect signing configuration
+        id: signing
+        env:
+          CERT_PRESENT: ${{ secrets.MACOS_CERT_P12 != '' }}
+        run: |
+          if [[ "$CERT_PRESENT" == "true" && "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Import signing certificate
+        id: keychain
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          echo "$MACOS_CERT_P12" | base64 --decode > cert.p12
+          KEYCHAIN_PASS=$(openssl rand -hex 16)
+          security create-keychain -p "$KEYCHAIN_PASS" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASS" build.keychain
+          security set-keychain-settings -lut 3600 build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASS" build.keychain > /dev/null
+          rm -f cert.p12
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
+          if [[ -z "$IDENTITY" ]]; then
+            echo "No Developer ID Application identity found in the certificate" >&2
+            exit 1
+          fi
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "Signing as: $IDENTITY"
+
+      - name: Codesign app
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          APP="dist/Dashcam Studio.app"
+          IDENTITY="${{ steps.keychain.outputs.identity }}"
+          # Sign every nested Mach-O first (ffmpeg, ffprobe, dylibs, Python),
+          # then the bundle itself with hardened runtime + entitlements.
+          find "$APP/Contents" -type f | while read -r f; do
+            if file "$f" | grep -q "Mach-O"; then
+              codesign --force --options runtime --timestamp --sign "$IDENTITY" "$f"
+            fi
+          done
+          codesign --force --options runtime --timestamp \
+            --entitlements packaging/macos/entitlements.plist \
+            --sign "$IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      # ── DMG ─────────────────────────────────────────────────────────
+      - name: Create DMG
+        id: dmg
+        run: |
+          DMG="dist/DashcamStudio-${{ steps.version.outputs.version }}.dmg"
+          mkdir -p dist/dmg
+          cp -R "dist/Dashcam Studio.app" dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          cp ffmpeg_LICENSE.txt dist/dmg/
+          hdiutil create -volname "Dashcam Studio" -srcfolder dist/dmg -ov -format UDZO "$DMG"
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
+      - name: Sign DMG
+        if: steps.signing.outputs.enabled == 'true'
+        run: codesign --force --timestamp --sign "${{ steps.keychain.outputs.identity }}" "${{ steps.dmg.outputs.path }}"
+
+      - name: Notarize and staple
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          echo "$APPLE_API_KEY" | base64 --decode > authkey.p8
+          xcrun notarytool submit "${{ steps.dmg.outputs.path }}" \
+            --key authkey.p8 \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --timeout 30m
+          rm -f authkey.p8
+          xcrun stapler staple "${{ steps.dmg.outputs.path }}"
+          spctl --assess --type open --context context:primary-signature -v "${{ steps.dmg.outputs.path }}" || true
+
+      # ── Publish ─────────────────────────────────────────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DashcamStudio-${{ steps.version.outputs.version }}
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          generate_release_notes: true

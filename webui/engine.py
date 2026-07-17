@@ -175,7 +175,11 @@ def build_engine_args(
         args.append("--skip_existing")
 
     if s["gpu"] and gpu_available:
-        args += ["--gpu", "--gpu_type", _choice(s.get("gpu_type"), GPU_TYPES, "vaapi")]
+        args.append("--gpu")
+        if not config.IS_DARWIN:
+            # The engine's Darwin parser has no --gpu_type; it selects the
+            # VideoToolbox encoders automatically.
+            args += ["--gpu_type", _choice(s.get("gpu_type"), GPU_TYPES, "vaapi")]
         if s.get("bitrate"):
             args += ["--bitrate", str(s["bitrate"])]
     else:

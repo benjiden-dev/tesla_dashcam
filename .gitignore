@@ -146,3 +146,4 @@ dist/
 webui/frontend/node_modules/
 webui/static/dist/
 webui/frontend/package-lock.json
+.venv-webui/

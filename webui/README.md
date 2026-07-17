@@ -68,6 +68,37 @@ With GPU encoding active the engine uses bitrate-based rate control
 panel. Previews and the map post-pass always run on CPU — they are tiny
 workloads.
 
+## Native macOS (Apple Silicon / VideoToolbox)
+
+Docker on a Mac cannot reach Apple's media engine, so for hardware encoding
+run the web UI natively — the engine already speaks VideoToolbox
+(`h264_videotoolbox` / `hevc_videotoolbox`) and selects it automatically on
+macOS when GPU acceleration is on.
+
+```bash
+brew install ffmpeg python@3.13 node   # one-time prerequisites
+
+# from the repository root — point it at any local input/output folders:
+bash webui/run_macos.sh ~/TeslaCam ~/Movies/TeslaDashcam
+```
+
+Open http://localhost:8088 — the header badge shows **VideoToolbox**.
+
+The script creates a `.venv-webui` virtualenv, installs engine + backend
+dependencies, builds the frontend once (re-build with `FORCE_FRONTEND=1`),
+and starts the server. Positional args are `INPUT_DIR OUTPUT_DIR PORT`; the
+same names work as environment variables. Cache lives in
+`~/Library/Caches/tesla-dashcam-webui`.
+
+Notes:
+
+- The bitrate selector in the Quality panel applies to VideoToolbox exactly
+  as it does to VAAPI (hardware encoders ignore CRF).
+- Timestamp overlays default to `/Library/Fonts/Arial Unicode.ttf`; if your
+  Mac doesn't have it, set a font path in the timestamp settings (any `.ttf`
+  under `/System/Library/Fonts` or `~/Library/Fonts` works).
+- Docker on macOS still works for everything else — it just encodes on CPU.
+
 ## Deployment runbook (ben-server-2)
 
 Self-contained instruction sheet — written so it can be handed to a human or

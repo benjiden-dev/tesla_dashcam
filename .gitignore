@@ -147,3 +147,5 @@ webui/frontend/node_modules/
 webui/static/dist/
 webui/frontend/package-lock.json
 .venv-webui/
+packaging/macos/bin/
+!packaging/macos/*.spec

@@ -99,6 +99,30 @@ Notes:
   under `/System/Library/Fonts` or `~/Library/Fonts` works).
 - Docker on macOS still works for everything else — it just encodes on CPU.
 
+### Packaged app (DMG releases)
+
+Pushing a `v*` tag builds **Dashcam Studio.app** on a macOS runner
+(PyInstaller, bundled arm64 ffmpeg — no Homebrew or Python needed on the
+target Mac) and attaches a DMG to a GitHub Release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+The workflow (`.github/workflows/release-macos.yml`) signs with the hardened
+runtime, notarizes via `notarytool` and staples the DMG when these repo
+secrets exist — otherwise it still produces an unsigned DMG artifact:
+`MACOS_CERT_P12`, `MACOS_CERT_PASSWORD` (Developer ID Application), and
+`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` (App Store
+Connect API key for notarization).
+
+The app serves http://localhost:8088 and opens the browser on launch.
+Default folders (override via environment): input `~/TeslaCam`, output
+`~/Movies/TeslaDashcam`. The app binary doubles as the engine
+(`DashcamStudio __engine__ …`), so the bundle is fully self-contained.
+Manual builds without a tag: Actions → "macOS release" → *Run workflow*
+(unsigned unless secrets are present; PR builds are always unsigned).
+
 ## Deployment runbook (ben-server-2)
 
 Self-contained instruction sheet — written so it can be handed to a human or

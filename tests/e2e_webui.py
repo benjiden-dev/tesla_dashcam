@@ -282,6 +282,31 @@ def main() -> None:
     # covered by unit paths; here we just confirm skip list stays empty.
     assert job2.delete_skipped == []
 
+    # ── Job 3: delete_input on a root-level event must NOT delete the root ──
+    # Loose clips directly in INPUT_DIR scan as an event whose folder IS the
+    # input dir; deletion must be skipped with a warning (regression guard for
+    # the Gemini-flagged critical bug).
+    gen_clip(root / "2026-07-13_08-00-00-front.mp4", seed=5)
+    events = scanner.scan_events()
+    root_event = next(e for e in events if e["path"] == ".")
+    job3 = manager.submit(
+        {
+            "events": [{"id": root_event["id"], "minutes": None}],
+            "settings": base_settings(),
+            "map_overlay": {"enabled": False},
+            "delete_input": True,
+        }
+    )
+    wait_for(job3)
+    assert job3.status == "completed", f"job3 failed: {job3.error}\n" + "\n".join(job3.log[-20:])
+    assert root.is_dir(), "INPUT ROOT WAS DELETED"
+    assert (root / "2026-07-13_08-00-00-front.mp4").is_file(), "root clip removed"
+    assert (root / "SavedClips").is_dir(), "sibling event folders removed"
+    assert job3.deleted_inputs == [], job3.deleted_inputs
+    assert job3.delete_skipped == [root.name], job3.delete_skipped
+    assert any("root input directory" in warning for warning in job3.progress.warnings)
+    print("e2e_webui: root-delete guard OK (input dir preserved)")
+
     print("e2e_webui: ALL OK")
 
 

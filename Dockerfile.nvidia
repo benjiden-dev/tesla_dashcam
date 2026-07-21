@@ -21,4 +21,7 @@ ENV PYTHONUNBUFFERED=true
 # Provide a default timezone
 ENV TZ=America/New_York
 
+RUN useradd -U -u 1000 appuser && chown -R 1000:1000 /usr/src/app
+USER 1000
+
 ENTRYPOINT [ "python3", "-m", "tesla_dashcam" ]

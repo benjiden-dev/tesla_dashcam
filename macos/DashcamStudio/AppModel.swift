@@ -34,10 +34,21 @@ final class AppModel {
     var activeProgress: RenderProgress?
     private var activeJobID: JobID?
 
+    /// Where rendered movies are written (defaults to ~/Movies/TeslaDashcam).
+    var outputFolder: URL
+
     let engine: EngineService
 
-    init(engine: EngineService = MockEngineService()) {
-        self.engine = engine
+    init(engine: EngineService? = nil) {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let cacheRoot = caches.appending(path: "dev.benjiden.dashcam-studio")
+        let movies = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        let output = movies.appending(path: "TeslaDashcam")
+        self.outputFolder = output
+        self.engine = engine ?? SidecarEngineService(cacheRoot: cacheRoot, outputRoot: output)
+
         let stored = UserDefaults.standard.string(forKey: Self.appearanceKey)
         self.appearance = stored.flatMap(AppAppearance.init(rawValue:)) ?? .system
     }
@@ -131,3 +142,17 @@ final class AppModel {
         if let id = activeJobID { engine.cancel(id) }
     }
 }
+
+#if DEBUG
+extension AppModel {
+    /// Populated model backed by the mock — for SwiftUI #Preview.
+    static var preview: AppModel {
+        let model = AppModel(engine: MockEngineService())
+        let root = URL(fileURLWithPath: "/tmp/TeslaCam")
+        model.sourceFolder = root
+        model.events = MockEngineService.sampleEvents(root: root)
+        model.selectedEventID = model.events.first { $0.group == .saved }?.id
+        return model
+    }
+}
+#endif

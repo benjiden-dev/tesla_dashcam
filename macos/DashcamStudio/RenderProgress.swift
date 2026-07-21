@@ -56,6 +56,7 @@ struct RenderProgress: Identifiable, Sendable {
     var etaSeconds: Int?
     var outputs: [URL] = []
     var warnings: [String] = []
+    var errors: [String] = []
     var errorMessage: String?
 
     var percentText: String { "\(Int((fractionCompleted * 100).rounded()))%" }
